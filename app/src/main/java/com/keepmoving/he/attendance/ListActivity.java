@@ -1,8 +1,11 @@
 package com.keepmoving.he.attendance;
 
 import android.app.AlertDialog;
+import android.content.Context;
 import android.database.Cursor;
 import android.database.sqlite.SQLiteDatabase;
+import android.net.wifi.WifiInfo;
+import android.net.wifi.WifiManager;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
 import android.view.Menu;
@@ -14,6 +17,7 @@ import android.widget.SimpleAdapter;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.Map;
 
 public class ListActivity extends android.app.ListActivity {
 
@@ -29,10 +33,20 @@ public class ListActivity extends android.app.ListActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_list);
         this.getIntent();
+        // wifi ip
+        WifiManager wifiManager = (WifiManager)getSystemService(Context.WIFI_SERVICE);
+        WifiInfo wifiInfo = wifiManager.getConnectionInfo();
+        int ipAddress = wifiInfo.getIpAddress();
+        // 数据库实例
         DatabaseHelper dbh = new DatabaseHelper(ListActivity.this,"SamG_Checkin");
         SQLiteDatabase sd = dbh.getReadableDatabase();
-        Cursor cursor=sd.query("CheckinTable", new String[]{"name","number"}, null, null, null, null, null);
-        ArrayList<HashMap<String,String>> list = new ArrayList<HashMap<String,String>>();
+        Cursor cursor=sd.query("CheckinTable", new String[]{"name","number"}, "link_flag=?", new String[]{String.valueOf(ipAddress)}, null, null, null);
+        final ArrayList<HashMap<String,String>> list = new ArrayList<HashMap<String,String>>();
+        final HashMap<String,String> titleMap = new HashMap<String,String>();
+        titleMap.put("getname", "姓名");
+        titleMap.put("getnumber", "学号");
+        list.add(titleMap);
+
         while(cursor.moveToNext()){
             for(int i=0;i<cursor.getCount();i++){
                 cursor.moveToPosition(i);
@@ -57,6 +71,11 @@ public class ListActivity extends android.app.ListActivity {
                 DatabaseHelper dbh = new DatabaseHelper(ListActivity.this,"SamG_Checkin");
                 SQLiteDatabase sd = dbh.getReadableDatabase();
                 sd.delete("CheckinTable", null, null);
+                sd.close();
+                list.clear();
+                list.add(titleMap);
+                SimpleAdapter adapter = new SimpleAdapter(getBaseContext(),list,R.layout.user,new String[]{"getname","getnumber"},new int[]{R.id.txt1,R.id.txt2});
+                setListAdapter(adapter);
                 System.out.println("已清除数据库！");
             }
 
@@ -81,7 +100,6 @@ public class ListActivity extends android.app.ListActivity {
         if(item.getTitle().equals("退出"))
             finish();
         else if(item.getTitle().equals("关于我们"));
-        dialog("SamG工作室出品");
         return super.onMenuItemSelected(featureId, item);
 
     }

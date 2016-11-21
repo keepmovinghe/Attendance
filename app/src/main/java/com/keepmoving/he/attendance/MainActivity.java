@@ -5,12 +5,19 @@ import android.app.AlertDialog;
 import android.app.Notification;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
+import android.content.BroadcastReceiver;
 import android.content.ContentValues;
 import android.content.Context;
 import android.content.Intent;
+import android.database.Cursor;
 import android.database.sqlite.SQLiteDatabase;
 import android.net.Uri;
+import android.net.wifi.WifiInfo;
+import android.net.wifi.WifiManager;
 import android.os.Bundle;
+import android.provider.Settings;
+import android.support.v4.content.LocalBroadcastManager;
+import android.telephony.TelephonyManager;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
@@ -27,12 +34,9 @@ import android.widget.Toast;
 public class MainActivity extends Activity {
 
     private Button button = null;
-    private Spinner spinner = null;
+    private Button buttonList = null;
     private EditText et1 = null;
     private EditText et2 = null;
-    private RadioGroup rg = null;
-    private RadioButton rb1 = null;
-    private RadioButton rb2 = null;
     //Toast数据
     private void display(String msg){
         Toast.makeText(this, msg, Toast.LENGTH_SHORT).show();
@@ -48,36 +52,6 @@ public class MainActivity extends Activity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
         //做spinner的效果
-        String[] universities= {"清华","北大","人大","北航","北邮","北影"};
-        ArrayAdapter<String> spinnerAdapter = new ArrayAdapter<String>(this, android.R.layout.simple_spinner_item, universities);
-        spinner = (Spinner)findViewById(R.id.spinner1);
-        spinner.setAdapter(spinnerAdapter);
-        spinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener(){
-
-            public void onItemSelected(AdapterView<?> arg0, View arg1,
-                                       int arg2, long arg3) {
-                // TODO Auto-generated method stub
-                display(((TextView)arg1).getText().toString());
-            }
-            public void onNothingSelected(AdapterView<?> arg0) {
-                // TODO Auto-generated method stub
-            }
-        });
-        //做男/女单选效果
-        rg = (RadioGroup)findViewById(R.id.radioGroup);
-        rb1 = (RadioButton)findViewById(R.id.radioButton1);
-        rb2 = (RadioButton)findViewById(R.id.radioButton2);
-        rg.setOnCheckedChangeListener(new RadioGroup.OnCheckedChangeListener(){
-
-            public void onCheckedChanged(RadioGroup group, int checkedId) {
-                // TODO Auto-generated method stub
-                if(rb1.getId()==checkedId)
-                    display("性别：男");
-                else if(rb2.getId()==checkedId)
-                    display("性别：女");
-            }
-
-        });
         //做按钮跳转
         button = (Button)findViewById(R.id.button1);
         button.setOnClickListener(new View.OnClickListener(){
@@ -86,52 +60,97 @@ public class MainActivity extends Activity {
                 // TODO Auto-generated method stub
                 et1 = (EditText)findViewById(R.id.editText);
                 et2 = (EditText)findViewById(R.id.editText1);
-                if((et1.getText().toString()).equals("请输入姓名")||((et1.getText().toString()).equals("")))
-                    dialog("姓名为必填项，请务必输入姓名！");
-                else if((et2.getText().toString()).equals("请输入电话")||((et2.getText().toString()).equals("")))
-                    dialog("联系电话为必填项，请务必输入电话号码！");
+                if((et1.getText().toString()).equals("请输入姓名")||((et1.getText().toString()).equals(""))) {
+                    Toast.makeText(MainActivity.this, "请输入姓名！", Toast.LENGTH_SHORT).show();
+                    et1.setFocusable(true);
+                    et1.setFocusableInTouchMode(true);
+                    et1.requestFocus();
+                    et1.findFocus();
+                    //dialog("请输入姓名！");
+                }
+                else if((et2.getText().toString()).equals("请输入学号")||((et2.getText().toString()).equals(""))) {
+                    Toast.makeText(MainActivity.this, "请输入学号", Toast.LENGTH_SHORT).show();
+                    et2.setFocusable(true);
+                    et2.setFocusableInTouchMode(true);
+                    et2.requestFocus();
+                    et2.findFocus();
+                    //dialog("请输入学号！");
+                }
                 else {
+                    // 设备ID
+                    TelephonyManager tm = (TelephonyManager)getSystemService(Context.TELEPHONY_SERVICE);
+                    String deviceId = tm.getDeviceId();
+                    // wifi ip
+                    WifiManager wifiManager = (WifiManager)getSystemService(Context.WIFI_SERVICE);
+                    WifiInfo wifiInfo = wifiManager.getConnectionInfo();
+                    int ipAddress = wifiInfo.getIpAddress();
+                    // db实例
                     DatabaseHelper dbh = new DatabaseHelper(MainActivity.this,"SamG_Checkin");
-                    SQLiteDatabase sd = dbh.getWritableDatabase();
+                    SQLiteDatabase sdRead = dbh.getReadableDatabase();
+                    // 查询是否已签到
+                    Cursor cursor=sdRead.query("CheckinTable", new String[]{"name","number"}, "number=?", new String[]{et2.getText().toString()}, null, null, null);
+                    if(cursor.getCount()>0){
+                        // 该设备已签到
+                        //dialog("您已签到！");
+                        Toast.makeText(MainActivity.this,"您已签到！",Toast.LENGTH_SHORT).show();
+                        cursor.close();
+                        sdRead.close();
+                        return;
+                    }
+                    // 查询是否替签
+                    cursor=sdRead.query("CheckinTable", new String[]{"name","number"}, "phone_ID=?", new String[]{deviceId}, null, null, null);
+                    if(cursor.getCount()>0){
+                        // 该设备已签到
+                        //dialog("该设备已签到！");
+                        Toast.makeText(MainActivity.this,"该设备已签到！",Toast.LENGTH_SHORT).show();
+                        cursor.close();
+                        sdRead.close();
+                        return;
+                    }
+
+                    // 保存数据
+                    //SQLiteDatabase sd = dbh.getWritableDatabase();
                     ContentValues values = new ContentValues();
+                    values.put("phone_ID",deviceId);
+                    values.put("link_flag",String.valueOf(ipAddress));
                     values.put("name", et1.getText().toString());
                     values.put("number", et2.getText().toString());
-                    sd.insert("CheckinTable", null, values);
-                    sd.close();
-                    Intent intent = new Intent();
-                    //intent.putExtra("name", et1.getText().toString());
-                    //intent.putExtra("number", et2.getText().toString());
-                    intent.setClass(MainActivity.this, ListActivity.class);
-                    startActivity(intent);
-                    //加一个notification
-                    //首先加入notification manager，再确定notification的闪出文本，和闪出时间
-                    NotificationManager notifyManager = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
-                    int icon = R.drawable.ic_launcher;
-                    CharSequence flashText = "录入提醒";
-                    long time = System.currentTimeMillis();
-                    PendingIntent pi = PendingIntent.getActivity(MainActivity.this,110,new Intent(Intent.ACTION_DIAL, Uri.parse("tel:"+et2.getText().toString())), 0);
+                    //sd.insert("CheckinTable", null, values);
+                    //sd.close();
 
-                    Notification notify = new Notification();
-                    notify.icon = icon;
-                    notify.tickerText=flashText;
-                    notify.when = time;
-                    notify.contentIntent=pi;
+                    //发送广播
+                    sendBroadcas(values);
 
-
-//				Notification notify = new Notification
-//						.Builder(MainActivity.this)
-//						.setSmallIcon(icon)
-//						.setTicker(flashText)
-//						.setWhen(time)
-//						.setContentTitle("录入联系方式")
-//						.setContentText("点击将拨通联系人电话")
-//						.setContentIntent(pi)
-//						.build();
-//				notifyManager.notify(1, notify);
+                    Toast.makeText(MainActivity.this,"签到成功！",Toast.LENGTH_SHORT).show();
                 }
             }
         });
+
+        buttonList = (Button) findViewById(R.id.button);
+        buttonList.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                    Intent intent = new Intent();
+                    intent.setClass(MainActivity.this, ListActivity.class);
+                    startActivity(intent);
+
+            }
+        });
     }
+
+    public void sendBroadcas(ContentValues values){
+        Intent intent = new Intent("com.keepmoving.he.attendance");
+        //intent.putExtra("values", values);
+        intent.putExtra("phone_ID",String.valueOf(values.get("phone_ID")));
+        intent.putExtra("link_flag",String.valueOf(values.get("link_flag")));
+        intent.putExtra("name", String.valueOf(values.get("name")));
+        intent.putExtra("number", String.valueOf(values.get("number")));
+        //sendBroadcast(intent);
+        //发送广播
+        System.out.println(values.get("number"));
+        sendBroadcast(intent);
+    }
+
     @Override
     //做菜单栏
     public boolean onCreateOptionsMenu(Menu menu) {
@@ -145,7 +164,6 @@ public class MainActivity extends Activity {
         if(item.getTitle().equals("退出"))
             finish();
         else if(item.getTitle().equals("关于我们"));
-        dialog("SamG工作室出品");
         return super.onMenuItemSelected(featureId, item);
 
     }

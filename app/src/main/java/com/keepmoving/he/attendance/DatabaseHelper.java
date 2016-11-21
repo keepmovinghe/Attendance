@@ -7,8 +7,6 @@ import android.util.Log;
 
 public class DatabaseHelper extends SQLiteOpenHelper {
 
-
-
     public DatabaseHelper(Context context, String name, SQLiteDatabase.CursorFactory factory,
                           int version) {
         super(context, name, factory, version);
@@ -24,7 +22,7 @@ public class DatabaseHelper extends SQLiteOpenHelper {
     @Override
     public void onCreate(SQLiteDatabase db) {
         // TODO Auto-generated method stub
-        db.execSQL("create table CheckinTable(name varchar(20) , number varchar(20))");
+        db.execSQL("create table CheckinTable(phone_ID varchar(50) , link_flag varchar(20) , name varchar(20) , number varchar(20))");
         Log.i("This is my Service!", "Created a database!");
     }
 
